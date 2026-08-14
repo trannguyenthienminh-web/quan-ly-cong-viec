@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lịch Trình">
+    <title>Quản Lý Công Việc</title>
+    <style>
+        :root {
+            --primary: #007aff;
+            --success: #34c759;
+            --danger: #ff3b30;
+            --bg: #f2f2f7;
+            --card-bg: #ffffff;
+            --text: #000000;
+            --text-muted: #8e8e93;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 24px;
+            font-weight: 700;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .btn:active {
+            opacity: 0.7;
+        }
+
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-success { background: var(--success); color: white; padding: 8px 12px; font-size: 14px;}
+        .btn-danger { background: var(--danger); color: white; padding: 8px 12px; font-size: 14px;}
+        .btn-warning { background: #ff9500; color: white; width: 100%; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(255,149,0,0.3); }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        input[type="text"], input[type="time"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d1d6;
+            border-radius: 10px;
+            font-size: 16px;
+            background: #fafafa;
+        }
+        
+        input[type="text"]:focus, input[type="time"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .flex-row input {
+            flex: 1;
+        }
+
+        .flex-row .btn {
+            width: auto;
+            flex-shrink: 0;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .task-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            flex: 1;
+        }
+
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+            margin-top: 2px;
+            accent-color: var(--primary);
+        }
+
+        .task-title {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .task-time {
+            font-size: 14px;
+            color: var(--primary);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .completed-text {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        .subtask-list {
+            margin-left: 34px;
+            border-left: 2px solid #e5e5ea;
+            padding-left: 12px;
+            margin-bottom: 12px;
+        }
+
+        .subtask-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #f9f9f9;
+            padding: 8px 10px;
+            border-radius: 8px;
+        }
+
+        .subtask-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .subtask-title {
+            font-size: 15px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 20px 0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lịch Trình Cá Nhân 📱</h1>
+        
+        <button id="enableAudioBtn" class="btn btn-warning">🔔 Bấm để bật âm thanh & thông báo</button>
+
+        <div class="card">
+            <div class="input-group">
+                <input type="text" id="taskInput" placeholder="Tên công việc chính (VD: Họp dự án)...">
+            </div>
+            <div class="flex-row">
+                <input type="time" id="timeInput">
+                <button class="btn btn-primary" onclick="addTask()">Thêm việc</button>
+            </div>
+        </div>
+
+        <div id="taskList"></div>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('myAppTasks')) || [];
+        let audioCtx;
+
+        // Khởi tạo âm thanh và xin quyền thông báo cho iOS
+        function initAudio() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if ('Notification' in window && Notification.permission !== 'granted') {
+                    Notification.requestPermission();
+                }
+                document.getElementById('enableAudioBtn').style.display = 'none';
+                
+                // Lưu trạng thái đã kích hoạt
+                sessionStorage.setItem('audioEnabled', 'true');
+                alert("Đã bật thành công! Ứng dụng sẽ đổ chuông khi đến giờ.");
+            } catch(e) {
+                console.error("Không thể khởi tạo âm thanh", e);
+            }
+        }
+
+        document.getElementById('enableAudioBtn').addEventListener('click', initAudio);
+        
+        // Ẩn nút nếu đã kích hoạt trong phiên làm việc này
+        if(sessionStorage.getItem('audioEnabled') === 'true') {
+            document.getElementById('enableAudioBtn').style.display = 'none';
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        // Tạo tiếng bíp báo thức không cần file âm thanh ngoài
+        function playBeep() {
+            if(!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                osc.type = 'sine';
+                
+                // Tiếng bíp lặp lại 3 lần
+                const now = audioCtx.currentTime;
+                
+                osc.frequency.setValueAtTime(880, now);
+                gainNode.gain.setValueAtTime(1, now);
+                
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                
+                osc.start(now);
+                osc.stop(now + 0.5);
+                
+                // Bíp 2
+                setTimeout(() => {
+                    if(!audioCtx) return;
+                    const osc2 = audioCtx.createOscillator();
+                    const gain2 = audioCtx.createGain();
+                    osc2.connect(gain2);
+                    gain2.connect(audioCtx.destination);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    gain2.gain.setValueAtTime(1, audioCtx.currentTime);
+                    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                    osc2.start(audioCtx.currentTime);
+                    osc2.stop(audioCtx.currentTime + 0.5);
+                }, 600);
+
+            } catch(e) { console.error(e); }
+        }
+
+        function saveTasks() {
+            localStorage.setItem('myAppTasks', JSON.stringify(tasks));
+            renderTasks();
+        }
+
+        function addTask() {
+            const title = document.getElementById('taskInput').value.trim();
+            const time = document.getElementById('timeInput').value;
+            if (!title) {
+                alert("Vui lòng nhập tên công việc!");
+                return;
+            }
+            
+            const newTask = { 
+                id: Date.now().toString(), 
+                title: title, 
+                time: time, 
+                completed: false, 
+                subtasks: [], 
+                notified: false 
+            };
+            
+            tasks.push(newTask);
+            document.getElementById('taskInput').value = '';
+            document.getElementById('timeInput').value = '';
+            saveTasks();
+        }
+
+        function addSubtask(taskId) {
+            const title = prompt("Nhập nội dung việc con:");
+            if(!title || !title.trim()) return;
+            const task = tasks.find(t => t.id === taskId);
+            if(task) {
+                task.subtasks.push({ 
+                    id: Date.now().toString(), 
+                    title: title.trim(), 
+                    completed: false 
+                });
+                saveTasks();
+            }
+        }
+
+        function toggleTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if(task) { 
+                task.completed = !task.completed; 
+                saveTasks(); 
+            }
+        }
+
+        function toggleSubtask(taskId, subtaskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if(task) {
+                const subtask = task.subtasks.find(s => s.id === subtaskId);
+                if(subtask) { 
+                    subtask.completed = !subtask.completed; 
+                    saveTasks(); 
+                }
+            }
+        }
+
+        function deleteTask(taskId) {
+            if(confirm("Bạn có chắc muốn xóa công việc này?")) {
+                tasks = tasks.filter(t => t.id !== taskId);
+                saveTasks();
+            }
+        }
+
+        function deleteSubtask(taskId, subtaskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if(task) {
+                task.subtasks = task.subtasks.filter(s => s.id !== subtaskId);
+                saveTasks();
+            }
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+            
+            if(tasks.length === 0) {
+                list.innerHTML = '<div class="empty-state">Chưa có công việc nào. Hãy thêm ở trên!</div>';
+                return;
+            }
+
+            // Sắp xếp: việc chưa xong lên trước, theo thứ tự giờ giấc
+            let sortedTasks = [...tasks].sort((a,b) => {
+                if(a.completed !== b.completed) return a.completed ? 1 : -1;
+                if(!a.time) return 1;
+                if(!b.time) return -1;
+                return a.time.localeCompare(b.time);
+            });
+
+            sortedTasks.forEach(task => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-info">
+                            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask('${task.id}')">
+                            <div>
+                                <div class="task-title ${task.completed ? 'completed-text' : ''}">${task.title}</div>
+                                <div class="task-time">${task.time ? '⏰ ' + task.time : 'Chưa hẹn giờ'}</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-danger" style="padding: 6px 10px;" onclick="deleteTask('${task.id}')">Xóa</button>
+                    </div>
+                    
+                    <div class="subtask-list">
+                        ${task.subtasks.map(sub => `
+                            <div class="subtask-item">
+                                <div class="subtask-info">
+                                    <input type="checkbox" ${sub.completed ? 'checked' : ''} onchange="toggleSubtask('${task.id}', '${sub.id}')">
+                                    <span class="subtask-title ${sub.completed ? 'completed-text' : ''}">${sub.title}</span>
+                                </div>
+                                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteSubtask('${task.id}', '${sub.id}')">X</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button class="btn btn-success" onclick="addSubtask('${task.id}')">+ Thêm việc con</button>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        // Vòng lặp kiểm tra thời gian mỗi 10 giây
+        setInterval(() => {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            const currentTime = `${hours}:${mins}`;
+
+            let changed = false;
+            
+            tasks.forEach(task => {
+                if (task.time === currentTime && !task.notified && !task.completed) {
+                    // Phát tiếng bíp
+                    playBeep();
+                    
+                    // Gửi Notification nếu được cấp quyền
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification("⏰ Đến giờ rồi!", { 
+                            body: task.title,
+                            requireInteraction: true
+                        });
+                    } else {
+                        // Nếu không, hiện Alert
+                        alert("⏰ Nhắc nhở: Đã đến giờ làm '" + task.title + "'!");
+                    }
+                    
+                    task.notified = true;
+                    changed = true;
+                }
+                
+                // Reset flag nếu đã qua phút đó để ngày mai có thể báo lại
+                if (task.time !== currentTime && task.notified) {
+                    task.notified = false;
+                    changed = true;
+                }
+            });
+            
+            if(changed) saveTasks();
+        }, 10000);
+
+        // Khởi chạy lần đầu
+        renderTasks();
+    </script>
+</body>
+</html>
